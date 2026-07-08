@@ -1,6 +1,6 @@
 export interface User {
-  id: string;
-  name: string;
+  id: number;
+  username: string;
   role: "admin" | "user";
   createdAt: string;
   updatedAt: string;
@@ -12,7 +12,8 @@ export interface Book {
     author: string;
     publisher: string;
     isbn: string;
-    status: "available" | "unavailable";
+    category: string;
+    status: "available" | "borrowed";
     createdAt: string;
     updatedAt: string;
 }

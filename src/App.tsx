@@ -1,12 +1,16 @@
 import { BrowserRouter, Routes, Route, Navigate, Link, Outlet } from "react-router-dom";
 import Login from "./pages/Login";
+import Register from "./pages/Register";
 import Books from "./pages/Books";
 import History from "./pages/History";
 import AdminHistory from "./pages/AdminHistory";
+import Users from "./pages/Users";
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem("token");
   return token ? <>{children}</> : <Navigate to="/login" />;
 }
+
 function Layout() {
   const role = localStorage.getItem("role");
   const handleLogout = () => {
@@ -23,6 +27,8 @@ function Layout() {
           <>
             {" | "}
             <Link to="/admin/history">全部记录</Link>
+            {" | "}
+            <Link to="/admin/users">用户管理</Link>
           </>
         )}
         <button onClick={handleLogout} style={{ marginLeft: 20 }}>
@@ -35,11 +41,13 @@ function Layout() {
     </div>
   );
 }
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route
           element={
             <ProtectedRoute>
@@ -50,6 +58,7 @@ export default function App() {
           <Route path="/books" element={<Books />} />
           <Route path="/history" element={<History />} />
           <Route path="/admin/history" element={<AdminHistory />} />
+          <Route path="/admin/users" element={<Users />} />
         </Route>
         <Route path="*" element={<Navigate to="/books" />} />
       </Routes>
