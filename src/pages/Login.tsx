@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { login } from "../api/auth";
 
 export default function Login() {
@@ -26,7 +26,7 @@ export default function Login() {
       <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="用户名" />
       <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="密码" />
       <button type="submit">登录</button>
-      <p>测试账号: admin / admin123</p>
+      <p>没有账号？<Link to="/register">去注册</Link></p>
     </form>
   );
 }
