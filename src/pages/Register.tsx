@@ -1,51 +1,96 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import {
+  Form,
+  Input,
+  Button,
+  Card,
+  App as AntdApp,
+} from "antd";
+import { UserOutlined, LockOutlined } from "@ant-design/icons";
 import { register } from "../api/auth";
 
 export default function Register() {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { message } = AntdApp.useApp();
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (username.length < 3) {
-      setError("用户名至少3个字符");
+  const handleSubmit = async (values: {
+    username: string;
+    password: string;
+  }) => {
+    if (values.username.length < 3) {
+      message.warning("用户名至少 3 个字符");
       return;
     }
-    if (password.length < 6) {
-      setError("密码至少6个字符");
+    if (values.password.length < 6) {
+      message.warning("密码至少 6 个字符");
       return;
     }
+    setLoading(true);
     try {
-      await register(username, password);
-      alert("注册成功，请登录");
+      await register(values.username, values.password);
+      message.success("注册成功，请登录");
       navigate("/login");
     } catch {
-      setError("注册失败，用户名可能已存在");
+      message.error("注册失败，用户名可能已存在");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <h1>注册</h1>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      <input
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        placeholder="用户名（至少3个字符）"
-      />
-      <input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="密码（至少6个字符）"
-      />
-      <button type="submit">注册</button>
-      <p>
-        已有账号？<Link to="/login">去登录</Link>
-      </p>
-    </form>
+    <div className="login-container">
+      <Card className="login-card" styles={{ body: { padding: 40 } }}>
+        <div className="login-brand">
+          <h1>馆藏</h1>
+          <p>创建新账号</p>
+        </div>
+        <Form onFinish={handleSubmit} size="large" autoComplete="off">
+          <Form.Item
+            name="username"
+            rules={[
+              { required: true, message: "请输入用户名" },
+              { min: 3, message: "用户名至少 3 个字符" },
+            ]}
+          >
+            <Input prefix={<UserOutlined />} placeholder="用户名（至少 3 个字符）" />
+          </Form.Item>
+          <Form.Item
+            name="password"
+            rules={[
+              { required: true, message: "请输入密码" },
+              { min: 6, message: "密码至少 6 个字符" },
+            ]}
+          >
+            <Input.Password
+              prefix={<LockOutlined />}
+              placeholder="密码（至少 6 个字符）"
+            />
+          </Form.Item>
+          <Form.Item style={{ marginBottom: 16 }}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={loading}
+              block
+            >
+              注册
+            </Button>
+          </Form.Item>
+          <div style={{ textAlign: "center" }}>
+            <span style={{ color: "#64748b", fontSize: 13 }}>
+              已有账号？{" "}
+            </span>
+            <Link
+              to="/login"
+              style={{ fontSize: 13, color: "#D97706" }}
+            >
+              去登录
+            </Link>
+          </div>
+        </Form>
+      </Card>
+    </div>
   );
 }

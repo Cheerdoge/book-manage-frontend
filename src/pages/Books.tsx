@@ -1,7 +1,34 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { getBooks, createBook, updateBook, deleteBook } from "../api/books";
 import { borrowBook } from "../api/borrow";
 import type { Book } from "../types";
+import {
+  Input,
+  Button,
+  Modal,
+  Form,
+  Tag,
+  Spin,
+  Empty,
+  App as AntdApp,
+  Popconfirm,
+} from "antd";
+import {
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  BookOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
+
+function categoryColor(category: string): string {
+  let hash = 0;
+  for (let i = 0; i < category.length; i++) {
+    hash = category.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 38%, 42%)`;
+}
 
 export default function Books() {
   const [books, setBooks] = useState<Book[]>([]);
@@ -13,82 +40,71 @@ export default function Books() {
   const role = localStorage.getItem("role");
   const isAdmin = role === "admin";
 
-  const [showForm, setShowForm] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
-  const [formTitle, setFormTitle] = useState("");
-  const [formAuthor, setFormAuthor] = useState("");
-  const [formPublisher, setFormPublisher] = useState("");
-  const [formIsbn, setFormIsbn] = useState("");
-  const [formCategory, setFormCategory] = useState("");
+  const [form] = Form.useForm();
+  const { message } = AntdApp.useApp();
 
   const loadBooks = () => {
     setLoading(true);
-    getBooks().then((res) => {
-      setBooks(res.data.data ?? []);
-      setLoading(false);
-    });
+    getBooks()
+      .then((res) => {
+        setBooks(res.data.data ?? []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   };
 
   useEffect(() => {
     loadBooks();
   }, []);
 
-  const openAddForm = () => {
+  const openAddModal = () => {
     setEditingBook(null);
-    setFormTitle("");
-    setFormAuthor("");
-    setFormPublisher("");
-    setFormIsbn("");
-    setFormCategory("");
-    setShowForm(true);
+    form.resetFields();
+    setModalOpen(true);
   };
 
-  const openEditForm = (book: Book) => {
+  const openEditModal = (book: Book) => {
     setEditingBook(book);
-    setFormTitle(book.title);
-    setFormAuthor(book.author);
-    setFormPublisher(book.publisher);
-    setFormIsbn(book.isbn);
-    setFormCategory(book.category);
-    setShowForm(true);
+    form.setFieldsValue(book);
+    setModalOpen(true);
   };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!formTitle.trim()) {
-      alert("书名不能为空");
-      return;
-    }
+  const handleFormSubmit = async () => {
     try {
+      const values = await form.validateFields();
       const data = {
-        title: formTitle.trim(),
-        author: formAuthor.trim(),
-        publisher: formPublisher.trim(),
-        isbn: formIsbn.trim(),
-        category: formCategory.trim(),
+        title: values.title.trim(),
+        author: values.author.trim(),
+        publisher: values.publisher.trim(),
+        isbn: values.isbn.trim(),
+        category: values.category.trim(),
       };
       if (editingBook) {
         await updateBook(editingBook.id, data);
-        alert("修改成功");
+        message.success("修改成功");
       } else {
         await createBook(data);
-        alert("添加成功");
+        message.success("添加成功");
       }
-      setShowForm(false);
+      setModalOpen(false);
+      form.resetFields();
       loadBooks();
     } catch {
-      alert(editingBook ? "修改失败" : "添加失败");
+      if (editingBook) message.error("修改失败");
+      else message.error("添加失败");
     }
   };
 
   const handleDelete = async (bookId: number, title: string) => {
-    if (!window.confirm(`确认删除《${title}》？`)) return;
     setDeletingId(bookId);
     try {
       await deleteBook(bookId);
+      message.success(`已删除《${title}》`);
       setBooks((prev) => prev.filter((b) => b.id !== bookId));
     } catch {
-      alert("删除失败");
+      message.error("删除失败");
     } finally {
       setDeletingId(null);
     }
@@ -98,134 +114,176 @@ export default function Books() {
     setBorrowingId(bookId);
     try {
       await borrowBook(bookId);
-      alert("借阅成功");
+      message.success("借阅成功");
       loadBooks();
     } catch {
-      alert("借阅失败，可能已被借出");
+      message.error("借阅失败，可能已被借出");
     } finally {
       setBorrowingId(null);
     }
   };
 
   const filtered = books.filter(
-    (b) => b.title.includes(search) || b.author.includes(search)
+    (b) =>
+      b.title.includes(search) ||
+      b.author.includes(search) ||
+      b.isbn.includes(search)
   );
 
-  if (loading) return <p>加载中...</p>;
+  if (loading) {
+    return (
+      <div style={{ textAlign: "center", padding: 80 }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
     <div>
-      <h1>图书列表</h1>
+      <div style={{ marginBottom: 24 }}>
+        <h2 className="page-title">藏书管理</h2>
+        <p className="page-subtitle">
+          共 {books.length} 册藏书，{books.filter((b) => b.status === "available").length}{" "}
+          册可借
+        </p>
+      </div>
 
-      <div style={{ marginBottom: 12 }}>
-        <input
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          marginBottom: 16,
+          flexWrap: "wrap",
+        }}
+      >
+        <Input
+          prefix={<SearchOutlined style={{ color: "#94a3b8" }} />}
+          placeholder="搜索书名、作者或 ISBN"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="搜索书名或作者"
+          allowClear
+          style={{ flex: 1, minWidth: 220 }}
         />
         {isAdmin && (
-          <button onClick={openAddForm} style={{ marginLeft: 8 }}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openAddModal}>
             添加图书
-          </button>
+          </Button>
         )}
       </div>
 
-      {showForm && (
-        <form
-          onSubmit={handleSubmit}
-          style={{
-            border: "1px solid #ccc",
-            padding: 16,
-            marginBottom: 16,
-            background: "#f9f9f9",
-          }}
-        >
-          <h3>{editingBook ? `编辑《${editingBook.title}》` : "添加新书"}</h3>
-          <div>
-            <label>书名 *</label>
-            <input
-              value={formTitle}
-              onChange={(e) => setFormTitle(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <label>作者</label>
-            <input
-              value={formAuthor}
-              onChange={(e) => setFormAuthor(e.target.value)}
-            />
-          </div>
-          <div>
-            <label>出版社</label>
-            <input
-              value={formPublisher}
-              onChange={(e) => setFormPublisher(e.target.value)}
-            />
-          </div>
-          <div>
-            <label>ISBN</label>
-            <input
-              value={formIsbn}
-              onChange={(e) => setFormIsbn(e.target.value)}
-            />
-          </div>
-          <div>
-            <label>分类</label>
-            <input
-              value={formCategory}
-              onChange={(e) => setFormCategory(e.target.value)}
-            />
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <button type="submit">{editingBook ? "保存" : "添加"}</button>
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              style={{ marginLeft: 8 }}
-            >
-              取消
-            </button>
-          </div>
-        </form>
+      {filtered.length === 0 ? (
+        <Empty description={search ? "未找到匹配的图书" : "暂未添加图书"} />
+      ) : (
+        <div className="book-grid">
+          {filtered.map((book) => (
+            <div key={book.id} className="book-card">
+              <span
+                className="spine-stripe"
+                style={{
+                  background: book.category
+                    ? categoryColor(book.category)
+                    : "#e2e8f0",
+                }}
+              />
+              <h3 className="book-title">{book.title}</h3>
+              <p className="book-author">
+                {book.author || "作者不详"}
+                {book.publisher && ` · ${book.publisher}`}
+              </p>
+              <p className="book-meta">
+                {book.isbn && <span>{book.isbn}</span>}
+                {book.category && (
+                  <Tag style={{ margin: 0, fontSize: 11 }}>{book.category}</Tag>
+                )}
+              </p>
+              <div className="book-footer">
+                <span
+                  style={{
+                    fontSize: 13,
+                    color: book.status === "available" ? "#16A34A" : "#94A3B8",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  <span
+                    className={`status-dot ${book.status}`}
+                  />
+                  {book.status === "available" ? "可借阅" : "已借出"}
+                </span>
+                <div className="actions">
+                  {book.status === "available" && (
+                    <Button
+                      size="small"
+                      type="primary"
+                      icon={<BookOutlined />}
+                      loading={borrowingId === book.id}
+                      onClick={() => handleBorrow(book.id)}
+                    >
+                      借阅
+                    </Button>
+                  )}
+                  {isAdmin && (
+                    <>
+                      <Button
+                        size="small"
+                        icon={<EditOutlined />}
+                        onClick={() => openEditModal(book)}
+                      />
+                      <Popconfirm
+                        title={`确认删除《${book.title}》？`}
+                        onConfirm={() => handleDelete(book.id, book.title)}
+                        okText="确认删除"
+                        cancelText="取消"
+                        okButtonProps={{ danger: true }}
+                      >
+                        <Button
+                          size="small"
+                          danger
+                          icon={<DeleteOutlined />}
+                          loading={deletingId === book.id}
+                        />
+                      </Popconfirm>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
-      <ul>
-        {filtered.map((book) => (
-          <li key={book.id}>
-            《{book.title}》—— {book.author}
-            {book.category && ` [${book.category}]`}
-            {book.status === "available" ? (
-              <button
-                onClick={() => handleBorrow(book.id)}
-                disabled={borrowingId === book.id}
-                style={{ marginLeft: 8 }}
-              >
-                {borrowingId === book.id ? "借阅中..." : "借阅"}
-              </button>
-            ) : (
-              <span style={{ color: "gray", marginLeft: 8 }}>❌已借出</span>
-            )}
-            {isAdmin && (
-              <>
-                <button
-                  onClick={() => openEditForm(book)}
-                  style={{ marginLeft: 8 }}
-                >
-                  编辑
-                </button>
-                <button
-                  onClick={() => handleDelete(book.id, book.title)}
-                  disabled={deletingId === book.id}
-                  style={{ marginLeft: 4, color: "red" }}
-                >
-                  {deletingId === book.id ? "删除中..." : "删除"}
-                </button>
-              </>
-            )}
-          </li>
-        ))}
-      </ul>
+      <Modal
+        title={editingBook ? `编辑《${editingBook.title}》` : "添加新书"}
+        open={modalOpen}
+        onOk={handleFormSubmit}
+        onCancel={() => setModalOpen(false)}
+        okText={editingBook ? "保存" : "添加"}
+        cancelText="取消"
+        destroyOnClose
+        width={520}
+      >
+        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item
+            name="title"
+            label="书名"
+            rules={[{ required: true, message: "书名不能为空" }]}
+          >
+            <Input placeholder="请输入书名" />
+          </Form.Item>
+          <Form.Item name="author" label="作者">
+            <Input placeholder="请输入作者" />
+          </Form.Item>
+          <Form.Item name="publisher" label="出版社">
+            <Input placeholder="请输入出版社" />
+          </Form.Item>
+          <Form.Item name="isbn" label="ISBN">
+            <Input placeholder="请输入 ISBN" style={{ fontFamily: "'JetBrains Mono', monospace" }} />
+          </Form.Item>
+          <Form.Item name="category" label="分类">
+            <Input placeholder="如：文学、科技、历史" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }
